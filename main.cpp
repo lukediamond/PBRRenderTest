@@ -5,8 +5,6 @@
 #include <future>
 #include <errno.h>
 #include <mutex>
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 #include <SDL2/SDL.h>
 #include <GL/glew.h>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -18,6 +16,11 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+
+#include "gfx-boilerplate/fileio.hpp"
+#include "gfx-boilerplate/gl_shader.hpp"
+#include "gfx-boilerplate/gl_texture.hpp"
+#include "gfx-boilerplate/image.hpp"
 
 struct GlStaticMesh {
     GLuint vao;
@@ -125,11 +128,11 @@ void ai_load_static_mesh(StaticMesh* mesh, const char *path) {
     printf("%s: %u verts\n", path, m->mNumVertices);
     for (size_t i = 0; i < m->mNumVertices; ++i) {
         mesh->vertices.push_back(GlStaticMeshVert {
-            .pos = from_aiv3(m->mVertices[i]),
-            .norm = from_aiv3(m->mNormals[i]),
-            .tang = from_aiv3(m->mTangents[i]),
-            .bitang = from_aiv3(m->mBitangents[i]),
-            .coord = from_aiv3_2(m->mTextureCoords[0][i])
+            from_aiv3(m->mVertices[i]),
+            from_aiv3(m->mNormals[i]),
+            from_aiv3(m->mTangents[i]),
+            from_aiv3(m->mBitangents[i]),
+            from_aiv3_2(m->mTextureCoords[0][i])
         });
     }
 
@@ -212,15 +215,15 @@ int main(int argc, char** argv) {
 
 
     StaticMesh mesh;
-    ai_load_static_mesh(&mesh, ".\\DamagedHelmet.fbx");
+    ai_load_static_mesh(&mesh, "res/DamagedHelmet.fbx");
 
     GlStaticMesh glmesh;
     gl_load_static_mesh(&glmesh, mesh.vertices.data(), mesh.vertices.size(), mesh.indices.data(), mesh.indices.size());
 
     
-    GLuint program = compile_pair(".\\vert.glsl", ".\\frag.glsl");
-    GLuint bdprogram = compile_pair(".\\bdvert.glsl", ".\\bdfrag.glsl");
-    GLuint fbprogram = compile_pair(".\\fbvert.glsl", ".\\fbfrag.glsl");
+    GLuint program = compile_pair("shaders/vert.glsl", "shaders/frag.glsl");
+    GLuint bdprogram = compile_pair("shaders/bdvert.glsl", "shaders/bdfrag.glsl");
+    GLuint fbprogram = compile_pair("shaders/fbvert.glsl", "shaders/fbfrag.glsl");
     
     GLuint backdrop_vao;
     GLuint backdrop_verts;
@@ -289,12 +292,12 @@ int main(int argc, char** argv) {
 
     std::vector<std::future<Texture>> textures;
     std::vector<Texture> tex;
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, ".\\bush_restaurant_4k.hdr"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, ".\\Default_albedo.jpg"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, ".\\Default_metalRoughness.jpg"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, ".\\Default_normal.jpg"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, ".\\Default_AO.jpg"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, ".\\Default_emissive.jpg"); return tex; }));
+    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/bush_restaurant_4k.hdr"); return tex; }));
+    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_albedo.jpg"); return tex; }));
+    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_metalRoughness.jpg"); return tex; }));
+    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_normal.jpg"); return tex; }));
+    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_AO.jpg"); return tex; }));
+    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_emissive.jpg"); return tex; }));
 
     for (auto& t : textures) tex.push_back(t.get());
 
@@ -504,4 +507,6 @@ int main(int argc, char** argv) {
 
     SDL_DestroyWindow(window);
     SDL_Quit();
+
+    return 0;
 }

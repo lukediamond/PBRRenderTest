@@ -1,0 +1,3 @@
+[submodule "gfx-boilerplate"]
+	path = gfx-boilerplate
+	url = https://www.github.com/rxsunshine/gfx-boilerplate.git
