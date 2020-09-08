@@ -36,7 +36,7 @@ struct GlStaticMeshVert {
     glm::vec2 coord;
 };
 
-void gl_load_static_mesh(
+void LoadStaticMesh(
         GlStaticMesh*           mesh,
         const GlStaticMeshVert* verts,
         size_t                  numverts,
@@ -67,56 +67,17 @@ struct StaticMesh {
     std::vector<GLuint>             indices;
 };
 
-glm::vec3 from_aiv3(aiVector3D vector) {
+static inline glm::vec3 ToGLMV3(aiVector3D vector) {
     return glm::vec3 { vector.x, vector.y, vector.z };
 }
 
-glm::vec2 from_aiv3_2(aiVector3D vector) {
+static inline glm::vec2 ToGLMV2(aiVector3D vector) {
     return glm::vec2 { vector.x, vector.y };
 }
 
-GLuint compile_shader(const char* string, GLenum type) {
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &string, NULL);
-    glCompileShader(shader);
-    GLint status;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-    if (status == GL_FALSE) {
-        GLint elen;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &elen);
-        char* err = new char[elen];
-        glGetShaderInfoLog(shader, elen, nullptr, err);
-        printf("Failed to compile shader:\n%s\n", err);
-        delete[] err;
-        glDeleteShader(shader);
-        return 0;
-    }
-    return shader;
-}
-
-GLuint link_program(const GLuint* shaders, size_t numshaders) {
-    GLuint program = glCreateProgram();
-    for (size_t i = 0; i < numshaders; ++i)
-        glAttachShader(program, shaders[i]);
-    glLinkProgram(program);
-    GLint status;
-    glGetProgramiv(program, GL_LINK_STATUS, &status);
-    if (status == GL_FALSE) {
-        GLint elen;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &elen);
-        char* err = new char[elen];
-        glGetShaderInfoLog(program, elen, nullptr, err);
-        printf("Failed to link program:\n%s\n", err);
-        delete[] err;
-        glDeleteProgram(program);
-        return 0;
-    }
-    return program;
-}
-
-void ai_load_static_mesh(StaticMesh* mesh, const char *path) {
+void LoadStaticMesh(StaticMesh* mesh, const char *path) {
     using namespace Assimp;
-    Importer imp;
+    Importer imp {};
 
     const aiScene* as = imp.ReadFile(path, aiProcess_CalcTangentSpace | aiProcess_Triangulate);
     if (!as) exit(-1);
@@ -128,11 +89,11 @@ void ai_load_static_mesh(StaticMesh* mesh, const char *path) {
     printf("%s: %u verts\n", path, m->mNumVertices);
     for (size_t i = 0; i < m->mNumVertices; ++i) {
         mesh->vertices.push_back(GlStaticMeshVert {
-            from_aiv3(m->mVertices[i]),
-            from_aiv3(m->mNormals[i]),
-            from_aiv3(m->mTangents[i]),
-            from_aiv3(m->mBitangents[i]),
-            from_aiv3_2(m->mTextureCoords[0][i])
+            ToGLMV3(m->mVertices[i]),
+            ToGLMV3(m->mNormals[i]),
+            ToGLMV3(m->mTangents[i]),
+            ToGLMV3(m->mBitangents[i]),
+            ToGLMV2(m->mTextureCoords[0][i])
         });
     }
 
@@ -146,59 +107,14 @@ void ai_load_static_mesh(StaticMesh* mesh, const char *path) {
     }
 }
 
-std::string load_file(const char* path) {
-    std::ifstream stream(path);
-    stream.seekg(0, std::ios::end);
-    size_t len = stream.tellg();
-    stream.seekg(0);
-    std::string str;
-    str.resize(len, 0);
-    stream.read(&str[0], len);
-    stream.close();
-    return str;
-}
-
-struct Texture {
-    float* data;
-    int width;
-    int height;
-    int channels;
-};
-GLuint gl_load_texture(const Texture texture) {
-    GLuint gltex;
-    glGenTextures(1, &gltex);
-    glBindTexture(GL_TEXTURE_2D, gltex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 16);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture.width, texture.height, 0, GL_RGB, GL_FLOAT, texture.data);
-    return gltex;
-}
-void load_texture(Texture* texture, const char* path) {
-    stbi_set_flip_vertically_on_load(1);
-    texture->data = stbi_loadf(path, &texture->width, &texture->height, &texture->channels, 3);
-}
-
-GLuint compile_pair(const char* vpath, const char* fpath) {
-    GLuint program;
-    std::string vsrc = load_file(vpath);
-    std::string fsrc = load_file(fpath);
-    GLuint shaders[] = {
-        compile_shader(vsrc.c_str(), GL_VERTEX_SHADER),
-        compile_shader(fsrc.c_str(), GL_FRAGMENT_SHADER)
-    };
-    program = link_program(shaders, 2);
-    glDeleteShader(shaders[0]);
-    glDeleteShader(shaders[1]);
-    return program;
+GLuint CompilePair(const char* vpath, const char* fpath) {
+    auto vsrc = ReadEntireFile(vpath);
+    auto fsrc = ReadEntireFile(fpath);
+    return GL_CreateProgram(vsrc.c_str(), fsrc.c_str());
 }
 
 int main(int argc, char** argv) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
@@ -208,22 +124,19 @@ int main(int argc, char** argv) {
     SDL_GLContext context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, context);
     SDL_GL_SetSwapInterval(1);
-    glewExperimental = true;
     glewInit();
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-
     StaticMesh mesh;
-    ai_load_static_mesh(&mesh, "res/DamagedHelmet.fbx");
+    LoadStaticMesh(&mesh, "res/DamagedHelmet.fbx");
 
     GlStaticMesh glmesh;
-    gl_load_static_mesh(&glmesh, mesh.vertices.data(), mesh.vertices.size(), mesh.indices.data(), mesh.indices.size());
+    LoadStaticMesh(&glmesh, mesh.vertices.data(), mesh.vertices.size(), mesh.indices.data(), mesh.indices.size());
 
-    
-    GLuint program = compile_pair("shaders/vert.glsl", "shaders/frag.glsl");
-    GLuint bdprogram = compile_pair("shaders/bdvert.glsl", "shaders/bdfrag.glsl");
-    GLuint fbprogram = compile_pair("shaders/fbvert.glsl", "shaders/fbfrag.glsl");
+    GLuint program = CompilePair("shaders/vert.glsl", "shaders/frag.glsl");
+    GLuint bdprogram = CompilePair("shaders/bdvert.glsl", "shaders/bdfrag.glsl");
+    GLuint fbprogram = CompilePair("shaders/fbvert.glsl", "shaders/fbfrag.glsl");
     
     GLuint backdrop_vao;
     GLuint backdrop_verts;
@@ -289,37 +202,42 @@ int main(int argc, char** argv) {
     GLenum drawbufs[] = { GL_COLOR_ATTACHMENT0, GL_DEPTH_ATTACHMENT };
     glDrawBuffers(2, drawbufs);
 
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    std::vector<std::future<Texture>> textures;
-    std::vector<Texture> tex;
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/bush_restaurant_4k.hdr"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_albedo.jpg"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_metalRoughness.jpg"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_normal.jpg"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_AO.jpg"); return tex; }));
-    textures.push_back(std::async([]() { Texture tex; load_texture(&tex, "res/Default_emissive.jpg"); return tex; }));
+    std::vector<std::future<Image>> imageFutures;
+    std::vector<Image> images;
+    for (auto path : {
+        "res/bush_restaurant_4k.hdr",
+        "res/Default_albedo.jpg",
+        "res/Default_metalRoughness.jpg",
+        "res/Default_normal.jpg",
+        "res/Default_AO.jpg",
+        "res/Default_emissive.jpg"
+    }) {
+        std::cout << path << '\n';
+        imageFutures.push_back(std::async(std::launch::async, Image_Load, path, 4, Image::F_F32));
+    }
+    for (auto& fut : imageFutures) images.push_back(fut.get());
 
-    for (auto& t : textures) tex.push_back(t.get());
-
-    GLuint texture      = gl_load_texture(tex[0]);
-    GLuint color        = gl_load_texture(tex[1]);
-    GLuint rough_metal  = gl_load_texture(tex[2]);
-    GLuint normal       = gl_load_texture(tex[3]);
-    GLuint ao           = gl_load_texture(tex[4]); 
-    GLuint emissive     = gl_load_texture(tex[5]); 
+    GLuint texture = GL_CreateTexture(images[0]);
+    GL_TextureFilter(texture, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR);
+    GLuint color = GL_CreateTexture(images[1]);
+    GL_TextureFilter(color, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR);
+    GLuint rough_metal = GL_CreateTexture(images[2]);
+    GL_TextureFilter(rough_metal, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR);
+    GLuint normal = GL_CreateTexture(images[3]);
+    GL_TextureFilter(normal, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR);
+    GLuint ao = GL_CreateTexture(images[4]); 
+    GL_TextureFilter(ao, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR);
+    GLuint emissive = GL_CreateTexture(images[5]); 
+    GL_TextureFilter(emissive, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR);
     glGenerateTextureMipmap(texture);
     glGenerateTextureMipmap(color);
     glGenerateTextureMipmap(rough_metal);
     glGenerateTextureMipmap(normal);
     glGenerateTextureMipmap(ao);
     glGenerateTextureMipmap(emissive);
-
-    free(tex[0].data);
-    free(tex[1].data);
-    free(tex[2].data);
-    free(tex[3].data);
-    free(tex[4].data);
-    free(tex[5].data);
+    for (auto& image : images) Image_Free(image);
 
     float mousex = 0.0f, mousey = 0.0f;
 
@@ -331,7 +249,6 @@ int main(int argc, char** argv) {
     bool running = true;
     double elapsed = 0.0;
     double delta = 0.0;
-
 
     float val = 0.0f;
     float val_t = 0.0f;
@@ -414,8 +331,8 @@ int main(int argc, char** argv) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
         glUniform1i(glGetUniformLocation(bdprogram, "u_env"), 0);
-        glUniformMatrix4fv(glGetUniformLocation(bdprogram, "u_proj"), 1, GL_FALSE, (const float*) &proj);
-        glUniformMatrix4fv(glGetUniformLocation(bdprogram, "u_rot"), 1, GL_FALSE, (const float*) &cammatrot);
+        GL_PassUniform(glGetUniformLocation(bdprogram, "u_proj"), proj);
+        GL_PassUniform(glGetUniformLocation(bdprogram, "u_rot"), cammatrot);
 
         glBindVertexArray(backdrop_vao);
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -427,33 +344,33 @@ int main(int argc, char** argv) {
         glDepthFunc(GL_LESS);
 
         glUseProgram(program);
-        glUniformMatrix4fv(glGetUniformLocation(program, "u_mvp"), 1, GL_FALSE, (const float*) &mvp);
-        glUniformMatrix4fv(glGetUniformLocation(program, "u_m"), 1, GL_FALSE, (const float*) &model);
-        glUniformMatrix4fv(glGetUniformLocation(program, "u_rot"), 1, GL_FALSE, (const float*) &matrot);
+        GL_PassUniform(glGetUniformLocation(program, "u_mvp"), mvp);
+        GL_PassUniform(glGetUniformLocation(program, "u_m"), model);
+        GL_PassUniform(glGetUniformLocation(program, "u_rot"), matrot);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
-        glUniform1i(glGetUniformLocation(program, "u_env"), 0);
+        GL_PassUniform(glGetUniformLocation(program, "u_env"), 0);
 
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, color);
-        glUniform1i(glGetUniformLocation(program, "u_color"), 1);
+        GL_PassUniform(glGetUniformLocation(program, "u_color"), 1);
 
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, rough_metal);
-        glUniform1i(glGetUniformLocation(program, "u_roughness_metalness"), 2);
+        GL_PassUniform(glGetUniformLocation(program, "u_roughness_metalness"), 2);
 
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, normal);
-        glUniform1i(glGetUniformLocation(program, "u_normal"), 3);
+        GL_PassUniform(glGetUniformLocation(program, "u_normal"), 3);
 
         glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_2D, ao);
-        glUniform1i(glGetUniformLocation(program, "u_ao"), 4);
+        GL_PassUniform(glGetUniformLocation(program, "u_ao"), 4);
 
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, emissive);
-        glUniform1i(glGetUniformLocation(program, "u_emissive"), 5);
+        GL_PassUniform(glGetUniformLocation(program, "u_emissive"), 5);
 
         glBindVertexArray(glmesh.vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glmesh.ibo);

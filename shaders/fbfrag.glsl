@@ -24,7 +24,6 @@ void main() {
 
     float blockage = 1.0;
 
-    /*
     for (int d = 0; d < 8; ++d) {
         vec3 raydir = normalize(vec3(cos(float(d) / 8 * 2.0 * 3.14), sin(float(d) / 8.0 * 2.0 * 3.14), 0.001));
         vec3 raypos = vec3(pass_coord, depth);
@@ -37,7 +36,6 @@ void main() {
         }
     }
     blockage = pow(blockage, 10.0) * 0.5 + 0.5;
-    */
 
     vec3 blur = vec3(0.0);
     vec3 ccol = texture(u_color, pass_coord).rgb;
@@ -64,6 +62,6 @@ void main() {
     if (depth == 1.0) mask = 1.0;
 
     //out_color.rgb = vec3(pow(depth, 100.0));
-    out_color = vec4(2.0 * pow(blur, vec3(2.2)), 1.0);
+    out_color = vec4(1.5 * pow(blur * blockage, vec3(2.2)), 1.0);
     //out_color.rgb = pow(out_color.rgb, vec3(1.0 / 1.1));
 }

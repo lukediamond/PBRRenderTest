@@ -18,6 +18,10 @@ file(COPY res DESTINATION ${OutputDir})
 add_executable(runtime
     main.cpp
     gfx-boilerplate/stb_impl.cpp
+    gfx-boilerplate/gl_shader.cpp
+    gfx-boilerplate/gl_prim.cpp
+    gfx-boilerplate/gl_texture.cpp
+    gfx-boilerplate/image.cpp
 )
 target_link_libraries(runtime
     opengl32

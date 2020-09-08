@@ -20,9 +20,9 @@ uniform mat4 u_rot;
 void main() {
     pass_pos = vec3(u_mvp * vec4(in_pos, 1.0));
     pass_pos_mvp = u_m * vec4(in_pos, 1.0);
-    pass_norm = vec3(u_rot * vec4(in_norm, 0.0));
-    pass_tang = vec3(u_rot * vec4(in_tang, 0.0));
-    pass_bitang = vec3(u_rot * vec4(in_bitang, 0.0));
+    pass_norm = normalize((u_m * vec4(in_norm, 0.0)).xyz);
+    pass_tang = normalize((u_m * vec4(in_tang, 0.0)).xyz);
+    pass_bitang = normalize((u_m * vec4(in_bitang, 0.0)).xyz);
     pass_coord = vec2(in_coord.x, in_coord.y);
     gl_Position = u_mvp * vec4(in_pos, 1.0);
 }

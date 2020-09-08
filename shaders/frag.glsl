@@ -21,14 +21,15 @@ vec2 equirect(vec3 dir) {
     const float PI = 3.14159;
     float lon = atan(-dir.z, dir.x) * 2.0 / PI;
     float lat = asin(dir.y) * 2.0 / PI;
-    return vec2(
+    vec2 vec = vec2(
         mod(0.25 + lon / (1.0 * PI), 1.0),
         mod(0.5 + lat / (2.0 * PI), 1.0)
     );
+    return vec;
 }
 
-float random (vec2 st) {
-    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+float random(vec2 st) {
+    return fract(sin(0.5 * dot(st.xy, vec2(12.9898,78.233))));
 }
 void main() {
     float roughness = texture(u_roughness_metalness, pass_coord).g;
@@ -40,25 +41,28 @@ void main() {
 
     mat3 tbn = mat3(pass_tang, pass_bitang, pass_norm);
     vec3 norm = tbn * normal;
-    float fresnel = pow(abs(dot(-normalize(pass_pos), norm)), 0.5) * 0.75 + 0.25; 
-
+    float fresnel = pow(abs(dot(normalize(pass_pos), norm)), 0.1) * 0.75 + 0.25; 
     vec3 camsurf = normalize(pass_pos_mvp.xyz * 2.0 - 1.0);
     vec3 reflectdir = reflect(camsurf, norm);
     vec3 reflectcol = vec3(0.0);
+    vec3 scattercol = vec3(0.0);
     for (int i = 0; i < 8; ++i) {
         vec3 scattervec = vec3(
             (random(vec2(i)) * 2.0 - 1.0),
             (random(vec2(i * i)) * 2.0 - 1.0),
             (random(vec2(-i)) * 2.0 - 1.0)
         );
-        reflectcol += texture(u_env, equirect(normalize(reflectdir + scattervec * roughness * 10.0))).rgb;
+        scattercol += texture(u_env, equirect(scattervec + reflectdir * 0.1)).rgb;
+        reflectcol += texture(u_env, equirect(reflectdir)).rgb;
     }
     reflectcol /= 8.0;
+    scattercol /= 8.0;
 
-    vec3 dielectric = mix(reflectcol, difcol, 1.0 - roughness);
-    vec3 metal = difcol * reflectcol;
-    out_color.rgb = pow(mix(dielectric, metal, metalness) * fresnel + emissive * 8.0, vec3(1.0 / 2.2)); 
+    vec3 refl = mix(reflectcol, scattercol, roughness);
+    vec3 dielectric = difcol + refl * 0.1 * (1.0 - roughness);
+    vec3 metal = difcol * refl;
+    out_color.rgb = pow(mix(dielectric, metal, metalness) + emissive * 8.0, vec3(1.0 / 2.2)); 
+    out_color.a = 1.0;
     //out_color.rgb = vec3(fresnel);
-
 }
 
